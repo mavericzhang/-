@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <meta name="description" content="Ios-不调用dealloc : 技术博客">
+
+    <link rel="stylesheet" type="text/css" media="screen" href="stylesheets/stylesheet.css">
+
+    <title>Ios-不调用dealloc</title>
+  </head>
+
+  <body>
+
+    <!-- HEADER -->
+    <div id="header_wrap" class="outer">
+        <header class="inner">
+          <a id="forkme_banner" href="https://github.com/mavericzhang/ios-dealloc">View on GitHub</a>
+
+          <h1 id="project_title">Ios-不调用dealloc</h1>
+          <h2 id="project_tagline">技术博客</h2>
+
+            <section id="downloads">
+              <a class="zip_download_link" href="https://github.com/mavericzhang/ios-dealloc/zipball/master">Download this project as a .zip file</a>
+              <a class="tar_download_link" href="https://github.com/mavericzhang/ios-dealloc/tarball/master">Download this project as a tar.gz file</a>
+            </section>
+        </header>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div id="main_content_wrap" class="outer">
+      <section id="main_content" class="inner">
+        <p>在一个项目中，如果ViewController使用完成之后，发现这个东东并没有释放掉，dealloc方法不走，看着那个内存蹭蹭的网上增，就跟自己的火气一样。相信大家都知道如何去释放一个不用的ViewController，但是还是有些其他因素限制了内存释放。
+首先，如果你创建了一个VController,使用它却没释放它，那这个VC肯定存在,那dealloc指定不调用，那么你创建的类就会内存泄露
+    textViewController * text = [[textViewController alloc] init];
+    [self.navigationController pushViewController:text animated:YES];
+    //[text release];</p>
+
+<p>然后，如果你的VC中有NSTimer，那么就要注意了，因为当你
+[NSTimer scheduledTimerWithTimeInterval:1.0 target:self selector:<a href="https://github.com/selector" class="user-mention">@selector</a>(updateTime:) userInfo:nil repeats:YES];</p>
+
+<p>时，这个 target:self 就增加了VC的RetarnCountr如果你不将这个timer invalidate，就别想调用dealloc。</p>
+
+<p>再然后，一个比较隐蔽的因素，你反过头去找找看，跟这个类有关的代理，嗯，对是代理，有没有强引用的属性啊？对，比如一个代理的delegate应该是 assign 的现在是retain，(╯‵□′)╯︵┻━┻，就是这个，它会影响你不让你调用dealloc，不信，就试试吧。</p>
+
+<p>最后，如果以上都没有问题的话，那么，真问题就来了。我就遇到了这种情况，在使用ASI进行网络请求的时候，因为需求原因，我使用属性将名为 ASIFormDataRequest 的NSOperation 标记住了，就将上面的问题找了又找，就是不行，最后是将那个标记的属性置为 nil 才解决了这个不调用 dealloc 的这个蛋疼问题。所以，如果你遇到了比较隐蔽的原因，那就去找找你自己控制不了的因素，就像这个第三方。如果你不了解它的运行机制，那就一定要注意这个库对你程序的影响。嗯，善用XXX.delegate = self;</p>
+
+<p>PS:dealloc中的释放也是有顺序的，就好比创建时，先父类，再子类，释放的时候反过来，不然有几率会crash，至于原因。 ———————— 看了一个帖子，上面说：子类是父类的继承，比较NB，以至于要杀死他们的时候应该先干掉比较牛B的子类。    看完后我就记住了。很有意思~</p>
+
+<p>self拥有block 时 block中的所有关于self的均用weak ，但是block中调用的方法中的self不用weak；
+if(!self.checkPuppetUser){
+        self.checkPuppetUser = [[SouFunCheckPuppetUser alloc] init];
+    }
+    __weak typeof(self) weakSelf = self;
+    self.myScrollView.userInteractionEnabled = NO;//防止在验证时与界面交互
+    [self.view showActivityViewAtCenter];
+    [self.checkPuppetUser CheckPhoneNumRequestSuccess:^(NSString *checkSuccess) {
+        weakSelf.myScrollView.userInteractionEnabled = YES;//可以与界面交互
+        [weakSelf.view hideActivityViewAtCenter];
+        weakSelf.isBinding = YES;
+    } Error:^(NSString *checkError) {
+        weakSelf.myScrollView.userInteractionEnabled = YES;//可以与界面交互
+        [weakSelf.view hideActivityViewAtCenter];
+        //未绑定手机号 需要绑定手机号
+        if (IOS8DEVICE){
+            [UtilitiesCreatCommentView creatAlertView:@"" message:@"绑定手机号才能写点评" cancel:@"取消" sure:@"绑定" handler:^(NSString *type) {
+                [weakSelf TheAlertViewResponTobindiphone:type];
+            } delegate:weakSelf otherButtonTitles:nil, nil];
+        }else{
+            UIAlertView * newAlertView = [[UIAlertView alloc] initWithTitle:@"" message:@"绑定手机号才能写点评" delegate:weakSelf cancelButtonTitle:@"取消" otherButtonTitles:@"绑定", nil];
+            newAlertView.delegate = weakSelf;
+            newAlertView.tag = 100012;
+            [newAlertView show];
+        }
+    }];</p>
+
+<p>还有出现循环引用的是 参数的传递比如：</p>
+
+<ul>
+<li>
+<p>(instancetype)initWithFrame:(CGRect)frame superViewcontroller:(UIViewController *)superViewcontroller
+{
+_superViewcontroller = superViewcontroller;
+self = [self initWithFrame:frame];</p>
+
+<p>return self;
+}
+如果返回的实例变量是一个类的属性，而这个类通过实例变量的初始化传递进来，进而赋值给一个strong的属性，那就发生了循环引用的问题</p>
+</li>
+</ul>
+
+<p>另外：
+1 如果该类中的属性或者实例变量要引用该类，也要使用weak属性；因为先释放属性再释放本类</p>
+      </section>
+    </div>
+
+    <!-- FOOTER  -->
+    <div id="footer_wrap" class="outer">
+      <footer class="inner">
+        <p class="copyright">Ios-不调用dealloc maintained by <a href="https://github.com/mavericzhang">mavericzhang</a></p>
+        <p>Published with <a href="https://pages.github.com">GitHub Pages</a></p>
+      </footer>
+    </div>
+
+    
+
+  </body>
+</html>
